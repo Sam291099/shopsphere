@@ -5,12 +5,14 @@ interface NavbarProps {
   cartCount: number;
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  onCartClick: () => void;
 }
 
 export default function Navbar({
   cartCount,
   searchQuery,
   onSearchChange,
+  onCartClick,
 }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur">
@@ -39,19 +41,25 @@ export default function Navbar({
           </div>
 
           <button
+            type="button"
+            onClick={onCartClick}
             aria-label="Shopping cart"
-            className="relative rounded-full p-2 hover:bg-zinc-100"
+            className="relative z-50 rounded-full p-2 hover:bg-zinc-100"
           >
-            <ShoppingBag size={21} />
+           <ShoppingBag size={21} />
 
             {cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-xs text-white">
-                {cartCount}
-              </span>
+             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-xs text-white">
+              {cartCount}
+             </span>
             )}
           </button>
 
-          <button className="rounded-lg p-2 hover:bg-zinc-100 md:hidden">
+          <button
+            type="button"
+            aria-label="Open menu"
+            className="rounded-lg p-2 hover:bg-zinc-100 md:hidden"
+          >
             <Menu size={22} />
           </button>
         </div>
