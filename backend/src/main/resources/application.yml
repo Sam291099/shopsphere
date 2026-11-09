@@ -1,0 +1,21 @@
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: shopsphere-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shopsphere
+    username: shopsphere_user
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
