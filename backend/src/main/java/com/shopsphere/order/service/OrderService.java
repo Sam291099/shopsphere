@@ -187,4 +187,34 @@ public class OrderService {
                 itemResponses
         );
     }
+    @Transactional(readOnly = true)
+public List<OrderResponse> getAllOrders() {
+    return orderRepository.findAllByOrderByCreatedAtDesc()
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
+@Transactional
+public OrderResponse updateOrderStatus(
+        String orderNumber,
+        OrderStatus newStatus
+) {
+    Order order = orderRepository.findByOrderNumber(orderNumber)
+            .orElseThrow(() -> new RuntimeException(
+                    "Order not found: " + orderNumber
+            ));
+
+    if (order.getStatus() == OrderStatus.DELIVERED ||
+            order.getStatus() == OrderStatus.CANCELLED) {
+        throw new IllegalStateException(
+                "Cannot update a completed or cancelled order."
+        );
+    }
+
+    order.setStatus(newStatus);
+
+    Order updatedOrder = orderRepository.save(order);
+
+    return mapToResponse(updatedOrder);
+}
 }

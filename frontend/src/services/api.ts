@@ -1,4 +1,5 @@
 
+
 import axios from "axios";
 
 const api = axios.create({
@@ -7,5 +8,19 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+// Automatically attach JWT to API requests.
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("shopsphere-token");
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 export default api;
