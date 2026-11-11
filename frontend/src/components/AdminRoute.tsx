@@ -1,11 +1,11 @@
 
 import { Navigate, Outlet } from "react-router-dom";
-import authService from "../services/authService";
+import { useAuth } from "../context/AuthContext";
 
 function AdminRoute() {
-  const user = authService.getUser();
+  const { user, isAuthenticated } = useAuth();
 
-  if (!authService.isAuthenticated() || !user) {
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 

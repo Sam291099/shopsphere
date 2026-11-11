@@ -1,71 +1,109 @@
 
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ShoppingBag, Lock, Mail } from "lucide-react";
-import authService from "../services/authService";
+import { useAuth } from "../context/AuthContext";
 
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const { login, isAuthenticated, user } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); console.log("LOGIN BUTTON CLICKED");
+  const successMessage = location.state?.message;
+  const redirectPath = location.state?.from?.pathname;
+
+  const handleLogin = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const response = await authService.login({
+      const response = await login({
         email,
         password,
       });
 
-      if (response.role === "ADMIN") {
-        navigate("/admin/orders");
+      if (redirectPath && redirectPath !== "/login") {
+        navigate(redirectPath, { replace: true });
+      } else if (response.role === "ADMIN") {
+        navigate("/admin/orders", { replace: true });
       } else {
-        navigate("/");
+        navigate("/", { replace: true });
       }
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
-        "Invalid email or password. Please try again."
+          "Invalid email or password. Please try again."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+  if (isAuthenticated && user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="rounded-2xl bg-white p-8 text-center shadow-lg">
+          <h1 className="text-2xl font-bold text-slate-900">
+            You are already signed in
+          </h1>
 
-        <div className="flex justify-center mb-6">
-          <div className="bg-blue-600 text-white p-3 rounded-xl">
+          <button
+            onClick={() =>
+              navigate(
+                user.role === "ADMIN" ? "/admin/orders" : "/",
+                { replace: true }
+              )
+            }
+            className="mt-5 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
+        <div className="mb-6 flex justify-center">
+          <div className="rounded-xl bg-blue-600 p-3 text-white">
             <ShoppingBag size={30} />
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold text-center text-slate-900">
+        <h1 className="text-center text-3xl font-bold text-slate-900">
           Welcome Back
         </h1>
 
-        <p className="text-center text-slate-500 mt-2 mb-8">
+        <p className="mb-8 mt-2 text-center text-slate-500">
           Sign in to your ShopSphere account
         </p>
 
+        {successMessage && (
+          <div className="mb-5 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+            {successMessage}
+          </div>
+        )}
+
         {error && (
-          <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 mb-5 text-sm">
+          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {error}
           </div>
         )}
 
         <form onSubmit={handleLogin} className="space-y-5">
-
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               Email Address
             </label>
 
@@ -78,16 +116,17 @@ function LoginPage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 placeholder="Enter your email"
                 required
-                className="w-full border border-slate-300 rounded-lg py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="email"
+                className="w-full rounded-lg border border-slate-300 py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               Password
             </label>
 
@@ -100,35 +139,44 @@ function LoginPage() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="Enter your password"
                 required
-                className="w-full border border-slate-300 rounded-lg py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="current-password"
+                className="w-full rounded-lg border border-slate-300 py-3 pl-10 pr-4 outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            <div className="mt-2 text-right">
+              <Link
+                to="/forgot-password"
+                className="text-sm font-semibold text-blue-600 hover:underline"
+              >
+                Forgot Password?
+              </Link>
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-3 rounded-lg transition"
+            className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>
-
         </form>
 
-        <p className="text-center text-sm text-slate-600 mt-7">
+        <p className="mt-7 text-center text-sm text-slate-600">
           Don't have an account?{" "}
           <Link
             to="/register"
-            className="text-blue-600 font-semibold hover:underline"
+            className="font-semibold text-blue-600 hover:underline"
           >
             Create Account
           </Link>
         </p>
 
-        <div className="text-center mt-5">
+        <div className="mt-5 text-center">
           <Link
             to="/"
             className="text-sm text-slate-500 hover:text-blue-600"
@@ -136,7 +184,6 @@ function LoginPage() {
             ← Back to Store
           </Link>
         </div>
-
       </div>
     </div>
   );

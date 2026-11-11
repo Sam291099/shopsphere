@@ -1,11 +1,12 @@
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import authService from "../services/authService";
+import { useAuth } from "../context/AuthContext";
 
 function ProtectedRoute() {
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
 
-  if (!authService.isAuthenticated()) {
+  if (!isAuthenticated) {
     return (
       <Navigate
         to="/login"

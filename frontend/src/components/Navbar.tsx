@@ -1,7 +1,14 @@
 
-import { ShoppingBag, Search, Menu, LogOut, UserCircle } from "lucide-react";
+import {
+  ShoppingBag,
+  Search,
+  Menu,
+  LogOut,
+  UserCircle,
+} from "lucide-react";
+
 import { Link, useNavigate } from "react-router-dom";
-import authService from "../services/authService";
+import { useAuth } from "../context/AuthContext";
 
 interface NavbarProps {
   cartCount: number;
@@ -17,15 +24,16 @@ export default function Navbar({
   onCartClick,
 }: NavbarProps) {
   const navigate = useNavigate();
-  const user = authService.getUser();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
-    authService.logout();
-    navigate("/login");
+    logout();
+    navigate("/login", { replace: true });
   };
 
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur">
+
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
 
         <Link to="/" className="text-2xl font-black tracking-tight">
@@ -33,12 +41,23 @@ export default function Navbar({
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm font-medium text-zinc-600 md:flex">
-          <a href="#home" className="hover:text-orange-500">Home</a>
-          <a href="#products" className="hover:text-orange-500">Shop</a>
-          <a href="#about" className="hover:text-orange-500">About</a>
+          <a href="#home" className="hover:text-orange-500">
+            Home
+          </a>
+
+          <a href="#products" className="hover:text-orange-500">
+            Shop
+          </a>
+
+          <a href="#about" className="hover:text-orange-500">
+            About
+          </a>
 
           {user?.role === "ADMIN" && (
-            <Link to="/admin/orders" className="hover:text-orange-500">
+            <Link
+              to="/admin/orders"
+              className="hover:text-orange-500"
+            >
               Admin Orders
             </Link>
           )}
@@ -48,6 +67,7 @@ export default function Navbar({
 
           <div className="hidden items-center rounded-full bg-zinc-100 px-4 py-2 sm:flex">
             <Search size={17} className="text-zinc-500" />
+
             <input
               type="search"
               placeholder="Search products..."
@@ -114,7 +134,6 @@ export default function Navbar({
           >
             <Menu size={22} />
           </button>
-
         </div>
       </div>
 
@@ -126,6 +145,46 @@ export default function Navbar({
           onChange={(e) => onSearchChange(e.target.value)}
           className="w-full rounded-full bg-zinc-100 px-4 py-2 text-sm outline-none"
         />
+
+        <div className="mt-2 flex items-center justify-between text-sm">
+          {user ? (
+            <>
+              <span className="font-medium text-zinc-700">
+                Hello, {user.fullName}
+              </span>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="font-medium text-orange-600"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="text-zinc-700">
+                Login
+              </Link>
+
+              <Link
+                to="/register"
+                className="font-semibold text-orange-600"
+              >
+                Register
+              </Link>
+            </>
+          )}
+        </div>
+
+        {user?.role === "ADMIN" && (
+          <Link
+            to="/admin/orders"
+            className="mt-2 block font-medium text-orange-600"
+          >
+            Admin Orders
+          </Link>
+        )}
       </div>
     </header>
   );

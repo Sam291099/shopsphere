@@ -1,6 +1,5 @@
 
 import { useEffect, useState } from "react";
-import axios from "axios";
 import {
   RefreshCw,
   Search,
@@ -10,6 +9,8 @@ import {
   Truck,
   XCircle,
 } from "lucide-react";
+
+import api from "../services/api";
 
 interface OrderItem {
   productId: number;
@@ -73,14 +74,13 @@ export default function AdminOrdersPage() {
       setLoading(true);
       setError("");
 
-      const response = await axios.get<Order[]>(
-        "http://localhost:8080/api/orders"
-      );
+      // Shared API service automatically attaches the JWT token.
+      const response = await api.get<Order[]>("/orders");
 
       setOrders(response.data);
     } catch (err) {
-      console.error(err);
-      setError("Unable to load orders. Please check the backend connection.");
+      console.error("Unable to load orders:", err);
+      setError("Unable to load orders. Please check your login and backend connection.");
     } finally {
       setLoading(false);
     }
@@ -94,8 +94,9 @@ export default function AdminOrdersPage() {
     try {
       setUpdatingOrder(orderNumber);
 
-      const response = await axios.put<Order>(
-        `http://localhost:8080/api/orders/${encodeURIComponent(orderNumber)}/status`,
+      // Shared API service automatically attaches the JWT token.
+      const response = await api.put<Order>(
+        `/orders/${encodeURIComponent(orderNumber)}/status`,
         null,
         { params: { status } }
       );
@@ -110,8 +111,10 @@ export default function AdminOrdersPage() {
         current?.orderNumber === orderNumber ? response.data : current
       );
     } catch (err) {
-      console.error(err);
-      alert("Unable to update order status. Please check the order and try again.");
+      console.error("Unable to update order status:", err);
+      alert(
+        "Unable to update order status. Please check your permissions and try again."
+      );
     } finally {
       setUpdatingOrder(null);
     }
@@ -157,7 +160,7 @@ export default function AdminOrdersPage() {
           </div>
 
           <button
-            onClick={loadOrders}
+            onClick={() => void loadOrders()}
             disabled={loading}
             className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-3 font-semibold transition hover:bg-orange-600 disabled:opacity-50"
           >
@@ -171,7 +174,9 @@ export default function AdminOrdersPage() {
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-zinc-500">Total Orders</p>
+              <p className="text-sm font-semibold text-zinc-500">
+                Total Orders
+              </p>
               <Package className="text-orange-500" />
             </div>
             <p className="mt-4 text-3xl font-black text-zinc-900">
@@ -181,7 +186,9 @@ export default function AdminOrdersPage() {
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-zinc-500">Pending Orders</p>
+              <p className="text-sm font-semibold text-zinc-500">
+                Pending Orders
+              </p>
               <Clock className="text-yellow-500" />
             </div>
             <p className="mt-4 text-3xl font-black text-zinc-900">
@@ -191,7 +198,9 @@ export default function AdminOrdersPage() {
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-zinc-500">Delivered</p>
+              <p className="text-sm font-semibold text-zinc-500">
+                Delivered
+              </p>
               <CheckCircle className="text-green-500" />
             </div>
             <p className="mt-4 text-3xl font-black text-zinc-900">
@@ -249,13 +258,16 @@ export default function AdminOrdersPage() {
 
           {loading ? (
             <div className="flex justify-center py-20">
-              <RefreshCw className="animate-spin text-orange-500" size={32} />
+              <RefreshCw
+                className="animate-spin text-orange-500"
+                size={32}
+              />
             </div>
           ) : error ? (
             <div className="mt-6 rounded-xl bg-red-50 p-5 text-center text-red-700">
               {error}
               <button
-                onClick={loadOrders}
+                onClick={() => void loadOrders()}
                 className="ml-3 font-bold underline"
               >
                 Try again
@@ -430,6 +442,7 @@ export default function AdminOrdersPage() {
                   </option>
                 ))}
               </select>
+
               {updatingOrder === selectedOrder.orderNumber && (
                 <p className="mt-2 text-sm text-orange-500">
                   Updating status...

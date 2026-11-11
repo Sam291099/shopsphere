@@ -1,6 +1,7 @@
+
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/auth";
+const API_URL = "/api/auth";
 
 const TOKEN_KEY = "shopsphere-token";
 const USER_KEY = "shopsphere-user";
@@ -37,10 +38,119 @@ export interface RegisterResponse {
   email: string;
 }
 
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface OtpResponse {
+  message: string;
+  email: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface VerifyResetOtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  otp: string;
+  newPassword: string;
+}
+
+export interface PasswordResetResponse {
+  message: string;
+}
+
+function decodeTokenExpiration(token: string): number | null {
+  try {
+    const parts = token.split(".");
+
+    if (parts.length !== 3 || !parts[1]) {
+      return null;
+    }
+
+    const payload = parts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const decoded = JSON.parse(
+      atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))
+    );
+
+    if (
+      typeof decoded.exp !== "number" ||
+      !Number.isFinite(decoded.exp)
+    ) {
+      return null;
+    }
+
+    return decoded.exp * 1000;
+  } catch {
+    return null;
+  }
+}
+
 const authService = {
   async register(data: RegisterRequest): Promise<RegisterResponse> {
     const response = await axios.post<RegisterResponse>(
       `${API_URL}/register`,
+      data
+    );
+
+    return response.data;
+  },
+
+  async verifyOtp(data: VerifyOtpRequest): Promise<OtpResponse> {
+    const response = await axios.post<OtpResponse>(
+      `${API_URL}/verify-otp`,
+      data
+    );
+
+    return response.data;
+  },
+
+  async resendOtp(email: string): Promise<OtpResponse> {
+    const response = await axios.post<OtpResponse>(
+      `${API_URL}/resend-otp`,
+      { email }
+    );
+
+    return response.data;
+  },
+
+  async forgotPassword(
+    data: ForgotPasswordRequest
+  ): Promise<PasswordResetResponse> {
+    const response = await axios.post<PasswordResetResponse>(
+      `${API_URL}/forgot-password`,
+      data
+    );
+
+    return response.data;
+  },
+
+  async verifyResetOtp(
+    data: VerifyResetOtpRequest
+  ): Promise<PasswordResetResponse> {
+    const response = await axios.post<PasswordResetResponse>(
+      `${API_URL}/verify-reset-otp`,
+      data
+    );
+
+    return response.data;
+  },
+
+  async resetPassword(
+    data: ResetPasswordRequest
+  ): Promise<PasswordResetResponse> {
+    const response = await axios.post<PasswordResetResponse>(
+      `${API_URL}/reset-password`,
       data
     );
 
@@ -55,8 +165,6 @@ const authService = {
 
     const authData = response.data;
 
-    localStorage.setItem(TOKEN_KEY, authData.token);
-
     const user: AuthUser = {
       userId: authData.userId,
       fullName: authData.fullName,
@@ -64,13 +172,37 @@ const authService = {
       role: authData.role,
     };
 
+    localStorage.setItem(TOKEN_KEY, authData.token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
 
     return authData;
   },
 
   getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      return null;
+    }
+
+    const expiration = decodeTokenExpiration(token);
+
+    if (!expiration || expiration <= Date.now()) {
+      this.logout();
+      return null;
+    }
+
+    return token;
+  },
+
+  getTokenExpiration(): number | null {
+    const token = this.getToken();
+
+    if (!token) {
+      return null;
+    }
+
+    return decodeTokenExpiration(token);
   },
 
   getUser(): AuthUser | null {
@@ -81,9 +213,24 @@ const authService = {
     }
 
     try {
-      return JSON.parse(userData) as AuthUser;
+      const user = JSON.parse(userData) as AuthUser;
+
+      if (
+        !Number.isInteger(user.userId) ||
+        user.userId <= 0 ||
+        typeof user.fullName !== "string" ||
+        !user.fullName.trim() ||
+        typeof user.email !== "string" ||
+        !user.email.trim() ||
+        !["ADMIN", "CUSTOMER"].includes(user.role)
+      ) {
+        this.logout();
+        return null;
+      }
+
+      return user;
     } catch {
-      localStorage.removeItem(USER_KEY);
+      this.logout();
       return null;
     }
   },
@@ -94,7 +241,7 @@ const authService = {
   },
 
   isAuthenticated(): boolean {
-    return Boolean(this.getToken());
+    return Boolean(this.getToken() && this.getUser());
   },
 };
 

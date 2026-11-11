@@ -28,6 +28,10 @@ public class User {
     @Column(nullable = false)
     private Boolean active = true;
 
+    @Column(name = "email_verified", nullable = false,
+            columnDefinition = "boolean default true")
+    private Boolean emailVerified = true;
+
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -77,6 +81,14 @@ public class User {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public Boolean getEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified;
     }
 
     public LocalDateTime getCreatedAt() {

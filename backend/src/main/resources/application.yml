@@ -1,3 +1,4 @@
+
 server:
   port: 8080
 
@@ -19,7 +20,24 @@ spring:
       hibernate:
         format_sql: true
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 app:
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: 86400000
+
+  otp:
+    expiration-minutes: 5
+    resend-cooldown-seconds: 60
+    max-attempts: 5
