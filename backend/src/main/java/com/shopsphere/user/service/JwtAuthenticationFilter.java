@@ -1,6 +1,9 @@
 
 package com.shopsphere.user.service;
 
+import com.shopsphere.user.entity.User;
+import com.shopsphere.user.repository.UserRepository;
+
 import io.jsonwebtoken.JwtException;
 
 import jakarta.servlet.FilterChain;
@@ -11,6 +14,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -22,13 +26,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
     public JwtAuthenticationFilter(
             JwtService jwtService,
-            CustomUserDetailsService userDetailsService
+            CustomUserDetailsService userDetailsService,
+            UserRepository userRepository
     ) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -52,9 +59,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String email = jwtService.extractEmail(token);
+            Long tokenVersion = jwtService.extractTokenVersion(token);
 
             if (email != null &&
                     SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                User user = userRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new UsernameNotFoundException("User not found.")
+                        );
+
+                if (!Boolean.TRUE.equals(user.getActive()) ||
+                        !Boolean.TRUE.equals(user.getEmailVerified()) ||
+                        user.getTokenVersion() == null ||
+                        !user.getTokenVersion().equals(tokenVersion)) {
+
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 UserDetails userDetails =
                         userDetailsService.loadUserByUsername(email);
@@ -75,9 +98,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         .setAuthentication(authentication);
             }
 
-        } catch (JwtException | IllegalArgumentException ex) {
-            SecurityContextHolder.clearContext();
-        } catch (org.springframework.security.core.userdetails.UsernameNotFoundException ex) {
+        } catch (JwtException | IllegalArgumentException |
+                 UsernameNotFoundException ex) {
             SecurityContextHolder.clearContext();
         }
 

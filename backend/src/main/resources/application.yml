@@ -41,3 +41,6 @@ app:
     expiration-minutes: 5
     resend-cooldown-seconds: 60
     max-attempts: 5
+
+    password-reset:
+    token-expiration-minutes: 10

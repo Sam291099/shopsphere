@@ -8,7 +8,8 @@ import com.shopsphere.user.dto.ResendOtpRequest;
 import com.shopsphere.user.dto.VerifyOtpRequest;
 import com.shopsphere.user.dto.ForgotPasswordRequest;
 import com.shopsphere.user.dto.VerifyResetOtpRequest;
-import com.shopsphere.user.dto.ResetPasswordRequest;
+import com.shopsphere.user.dto.ResetTokenResponse;
+import com.shopsphere.user.dto.ResetPasswordTokenRequest;
 
 import com.shopsphere.user.service.AuthService;
 import com.shopsphere.user.service.EmailOtpService;
@@ -113,8 +114,6 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    // PASSWORD RESET APIs
-
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request
@@ -130,15 +129,15 @@ public class AuthController {
     }
 
     @PostMapping("/verify-reset-otp")
-    public ResponseEntity<Map<String, String>> verifyResetOtp(
+    public ResponseEntity<?> verifyResetOtp(
             @Valid @RequestBody VerifyResetOtpRequest request
     ) {
-        boolean verified = passwordResetService.verifyResetOtp(
+        String resetToken = passwordResetService.verifyResetOtp(
                 request.getEmail(),
                 request.getOtp()
         );
 
-        if (!verified) {
+        if (resetToken == null) {
             return ResponseEntity.badRequest().body(
                     Map.of(
                             "message",
@@ -148,17 +147,19 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(
-                Map.of("message", "OTP verified successfully.")
+                new ResetTokenResponse(
+                        "OTP verified successfully.",
+                        resetToken
+                )
         );
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<Map<String, String>> resetPassword(
-            @Valid @RequestBody ResetPasswordRequest request
+            @Valid @RequestBody ResetPasswordTokenRequest request
     ) {
         boolean reset = passwordResetService.resetPassword(
-                request.getEmail(),
-                request.getOtp(),
+                request.getResetToken(),
                 request.getNewPassword()
         );
 
@@ -166,7 +167,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body(
                     Map.of(
                             "message",
-                            "Invalid or expired OTP. Please request a new password reset OTP."
+                            "Invalid, expired, or already used reset token. Please restart password recovery."
                     )
             );
         }

@@ -70,16 +70,25 @@ public class EmailOtpService {
         LocalDateTime now = LocalDateTime.now();
 
         EmailVerificationOtp pending = otpRepository
-                .findByEmail(normalizedEmail)
+                .findByEmailForUpdate(normalizedEmail)
                 .orElseGet(EmailVerificationOtp::new);
 
-        if (pending.getId() != null &&
-                pending.getLastSentAt().plusSeconds(
-                        resendCooldownSeconds
-                ).isAfter(now)) {
-            throw new IllegalArgumentException(
-                    "Please wait before requesting another OTP."
-            );
+        if (pending.getId() != null) {
+
+            if (!pending.getExpiresAt().isAfter(now)) {
+                otpRepository.delete(pending);
+                pending = new EmailVerificationOtp();
+            } else if (pending.getAttempts() >= maxAttempts) {
+                throw new IllegalArgumentException(
+                        "Maximum OTP attempts reached. Please wait until the OTP expires."
+                );
+            } else if (pending.getLastSentAt().plusSeconds(
+                    resendCooldownSeconds
+            ).isAfter(now)) {
+                throw new IllegalArgumentException(
+                        "Please wait before requesting another OTP."
+                );
+            }
         }
 
         String otp = generateOtp();
@@ -103,7 +112,7 @@ public class EmailOtpService {
         String normalizedEmail = normalizeEmail(email);
 
         EmailVerificationOtp pending = otpRepository
-                .findByEmail(normalizedEmail)
+                .findByEmailForUpdate(normalizedEmail)
                 .orElse(null);
 
         if (pending == null) {
@@ -118,7 +127,6 @@ public class EmailOtpService {
         }
 
         if (pending.getAttempts() >= maxAttempts) {
-            otpRepository.delete(pending);
             return false;
         }
 
@@ -147,7 +155,7 @@ public class EmailOtpService {
         String normalizedEmail = normalizeEmail(email);
 
         EmailVerificationOtp pending = otpRepository
-                .findByEmail(normalizedEmail)
+                .findByEmailForUpdate(normalizedEmail)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "No pending registration found. Please register again."
@@ -155,6 +163,20 @@ public class EmailOtpService {
                 );
 
         LocalDateTime now = LocalDateTime.now();
+
+        if (!pending.getExpiresAt().isAfter(now)) {
+            otpRepository.delete(pending);
+
+            throw new IllegalArgumentException(
+                    "Your OTP has expired. Please register again."
+            );
+        }
+
+        if (pending.getAttempts() >= maxAttempts) {
+            throw new IllegalArgumentException(
+                    "Maximum OTP attempts reached. Please wait until the OTP expires."
+            );
+        }
 
         if (pending.getLastSentAt().plusSeconds(
                 resendCooldownSeconds
@@ -166,6 +188,7 @@ public class EmailOtpService {
 
         if (userRepository.existsByEmail(normalizedEmail)) {
             otpRepository.delete(pending);
+
             throw new IllegalArgumentException(
                     "An account with this email already exists."
             );

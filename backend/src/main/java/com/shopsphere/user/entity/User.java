@@ -32,6 +32,9 @@ public class User {
             columnDefinition = "boolean default true")
     private Boolean emailVerified = true;
 
+    @Column(name = "token_version",nullable = false,
+             columnDefinition = "bigint default 0")
+    private Long tokenVersion = 0L;
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -89,6 +92,14 @@ public class User {
 
     public void setEmailVerified(Boolean emailVerified) {
         this.emailVerified = emailVerified;
+    }
+
+    public Long getTokenVersion() {
+        return tokenVersion;
+    }
+
+    public void setTokenVersion(Long tokenVersion) {
+        this.tokenVersion = tokenVersion;
     }
 
     public LocalDateTime getCreatedAt() {

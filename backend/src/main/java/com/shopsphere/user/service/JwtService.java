@@ -2,6 +2,8 @@
 package com.shopsphere.user.service;
 
 import com.shopsphere.user.entity.User;
+
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
@@ -22,7 +24,8 @@ public class JwtService {
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.expiration-ms:86400000}") long expirationMs
     ) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+        if (secret == null ||
+                secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException(
                     "JWT secret must contain at least 32 bytes."
             );
@@ -43,6 +46,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("role", user.getRole().name())
+                .claim("tokenVersion", user.getTokenVersion() == null ? 0L : user.getTokenVersion())
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(secretKey)
@@ -50,11 +54,26 @@ public class JwtService {
     }
 
     public String extractEmail(String token) {
+        return getClaims(token).getSubject();
+    }
+
+    public Long extractTokenVersion(String token) {
+        Object version = getClaims(token).get("tokenVersion");
+
+        if (!(version instanceof Number number)) {
+            throw new IllegalArgumentException(
+                    "JWT token version is missing."
+            );
+        }
+
+        return number.longValue();
+    }
+
+    private Claims getClaims(String token) {
         return Jwts.parser()
                 .verifyWith(secretKey)
                 .build()
                 .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+                .getPayload();
     }
 }

@@ -58,13 +58,17 @@ export interface VerifyResetOtpRequest {
 }
 
 export interface ResetPasswordRequest {
-  email: string;
-  otp: string;
+  resetToken: string;
   newPassword: string;
 }
 
 export interface PasswordResetResponse {
   message: string;
+}
+
+export interface VerifyResetOtpResponse {
+  message: string;
+  resetToken: string;
 }
 
 function decodeTokenExpiration(token: string): number | null {
@@ -137,8 +141,8 @@ const authService = {
 
   async verifyResetOtp(
     data: VerifyResetOtpRequest
-  ): Promise<PasswordResetResponse> {
-    const response = await axios.post<PasswordResetResponse>(
+  ): Promise<VerifyResetOtpResponse> {
+    const response = await axios.post<VerifyResetOtpResponse>(
       `${API_URL}/verify-reset-otp`,
       data
     );

@@ -19,6 +19,7 @@ function ForgotPasswordPage() {
   const [step, setStep] = useState<ResetStep>("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -42,6 +43,8 @@ function ForgotPasswordPage() {
       });
 
       setEmail(normalizedEmail);
+      setOtp("");
+      setResetToken("");
       setStep("otp");
 
       setSuccess(
@@ -77,11 +80,17 @@ function ForgotPasswordPage() {
         otp,
       });
 
+      if (!response.resetToken) {
+        throw new Error("Reset token was not received.");
+      }
+
+      setResetToken(response.resetToken);
       setStep("password");
       setSuccess(response.message);
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
+          err.message ||
           "Invalid or expired OTP. Please try again."
       );
     } finally {
@@ -95,6 +104,12 @@ function ForgotPasswordPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
+
+    if (!resetToken) {
+      setError("Your reset session is missing. Please restart password recovery.");
+      setStep("email");
+      return;
+    }
 
     if (newPassword.length < 8) {
       setError("Password must contain at least 8 characters.");
@@ -115,10 +130,14 @@ function ForgotPasswordPage() {
 
     try {
       const response = await authService.resetPassword({
-        email,
-        otp,
+        resetToken,
         newPassword,
       });
+
+      setResetToken("");
+      setOtp("");
+      setNewPassword("");
+      setConfirmPassword("");
 
       navigate("/login", {
         replace: true,
@@ -288,6 +307,7 @@ function ForgotPasswordPage() {
               onClick={() => {
                 setStep("email");
                 setOtp("");
+                setResetToken("");
                 setError("");
                 setSuccess("");
               }}
@@ -356,7 +376,7 @@ function ForgotPasswordPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !resetToken}
               className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
             >
               {loading ? "Resetting Password..." : "Reset Password"}
