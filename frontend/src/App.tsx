@@ -11,6 +11,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import AdminOrdersPage from "./pages/AdminOrdersPage";
+import ProfilePage from "./pages/ProfilePage";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -32,6 +33,12 @@ function App() {
 
           {/* Authenticated pages */}
           <Route element={<ProtectedRoute />}>
+            {/* Customer profile */}
+            <Route
+              path="/profile"
+              element={<ProfilePage />}
+            />
+
             {/* Administrator-only pages */}
             <Route element={<AdminRoute />}>
               <Route

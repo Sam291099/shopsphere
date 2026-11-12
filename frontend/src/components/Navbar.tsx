@@ -33,7 +33,6 @@ export default function Navbar({
 
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur">
-
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
 
         <Link to="/" className="text-2xl font-black tracking-tight">
@@ -41,9 +40,9 @@ export default function Navbar({
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm font-medium text-zinc-600 md:flex">
-          <a href="#home" className="hover:text-orange-500">
+          <Link to="/" className="hover:text-orange-500">
             Home
-          </a>
+          </Link>
 
           <a href="#products" className="hover:text-orange-500">
             Shop
@@ -52,6 +51,16 @@ export default function Navbar({
           <a href="#about" className="hover:text-orange-500">
             About
           </a>
+
+          {user?.role === "CUSTOMER" && (
+            <Link
+              to="/profile"
+              className="flex items-center gap-2 hover:text-orange-500"
+            >
+              <UserCircle size={17} />
+              My Profile
+            </Link>
+          )}
 
           {user?.role === "ADMIN" && (
             <Link
@@ -176,6 +185,16 @@ export default function Navbar({
             </>
           )}
         </div>
+
+        {user?.role === "CUSTOMER" && (
+          <Link
+            to="/profile"
+            className="mt-3 flex items-center gap-2 font-medium text-orange-600"
+          >
+            <UserCircle size={17} />
+            My Profile
+          </Link>
+        )}
 
         {user?.role === "ADMIN" && (
           <Link

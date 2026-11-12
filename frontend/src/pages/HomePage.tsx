@@ -18,6 +18,7 @@ import ProductCard from "../components/ProductCard";
 
 import { productService } from "../services/productService";
 import type { Product } from "../types/product";
+import { useAuth } from "../context/AuthContext";
 
 interface OrderResponse {
   id: number;
@@ -35,6 +36,14 @@ interface CheckoutForm {
 }
 
 export default function HomePage() {
+  const { user } = useAuth();
+
+  // Each customer gets a separate cart.
+  // Guests have their own separate cart.
+  const cartStorageKey = user
+    ? `shopsphere-cart-${user.userId}`
+    : "shopsphere-cart-guest";
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -42,14 +51,8 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const [cart, setCart] = useState<Record<number, number>>(() => {
-    try {
-      const savedCart = localStorage.getItem("shopsphere-cart");
-      return savedCart ? JSON.parse(savedCart) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [cartLoadedForKey, setCartLoadedForKey] = useState<string | null>(null);
 
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -85,9 +88,28 @@ export default function HomePage() {
     void loadProducts();
   }, []);
 
+  // Load the correct cart whenever the logged-in user changes.
   useEffect(() => {
-    localStorage.setItem("shopsphere-cart", JSON.stringify(cart));
-  }, [cart]);
+    try {
+      const savedCart = localStorage.getItem(cartStorageKey);
+      const parsedCart = savedCart ? JSON.parse(savedCart) : {};
+
+      setCart(parsedCart);
+    } catch {
+      setCart({});
+    }
+
+    setCartLoadedForKey(cartStorageKey);
+  }, [cartStorageKey]);
+
+  // Save only after the correct user's cart has loaded.
+  useEffect(() => {
+    if (cartLoadedForKey !== cartStorageKey) {
+      return;
+    }
+
+    localStorage.setItem(cartStorageKey, JSON.stringify(cart));
+  }, [cart, cartStorageKey, cartLoadedForKey]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
