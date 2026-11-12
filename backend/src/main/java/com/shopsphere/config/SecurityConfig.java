@@ -1,4 +1,3 @@
-
 package com.shopsphere.config;
 
 import com.shopsphere.user.service.JwtAuthenticationFilter;
@@ -41,22 +40,19 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
 
-                // Public authentication endpoints
                 .requestMatchers("/api/auth/**").permitAll()
 
-                // Public health endpoint
                 .requestMatchers("/api/health").permitAll()
 
-                // Public product browsing
                 .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
 
-                // Admin-only product management
                 .requestMatchers("/api/products/**").hasRole("ADMIN")
 
-                // Admin-only order management
                 .requestMatchers("/api/orders/**").hasRole("ADMIN")
 
-                // All remaining endpoints require authentication
+                // Customer cart access
+                .requestMatchers("/api/cart/**").hasRole("CUSTOMER")
+
                 .anyRequest().authenticated()
             )
             .addFilterBefore(
@@ -74,9 +70,9 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(
             List.of(
-             "http://localhost:5173",
-             "http://127.0.0.1:5173",
-             "http://192.168.56.1:5173"
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://192.168.56.1:5173"
             )
         );
 

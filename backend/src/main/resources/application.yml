@@ -42,5 +42,9 @@ app:
     resend-cooldown-seconds: 60
     max-attempts: 5
 
-    password-reset:
+  password-reset:
     token-expiration-minutes: 10
+
+  logging:
+    level:
+      org.springframework.security: DEBUG    

@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
@@ -19,6 +18,7 @@ import ProductCard from "../components/ProductCard";
 import { productService } from "../services/productService";
 import type { Product } from "../types/product";
 import { useAuth } from "../context/AuthContext";
+import authService from "../services/authService";
 
 interface OrderResponse {
   id: number;
@@ -26,6 +26,20 @@ interface OrderResponse {
   customerName: string;
   totalAmount: number;
   status: string;
+}
+
+interface BackendCartResponse {
+  cartId: number | null;
+  items: {
+    productId: number;
+    productName: string;
+    sku: string;
+    price: number;
+    stockQuantity: number;
+    quantity: number;
+    lineTotal: number;
+  }[];
+  subtotal: number;
 }
 
 interface CheckoutForm {
@@ -36,13 +50,20 @@ interface CheckoutForm {
 }
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
-  // Each customer gets a separate cart.
-  // Guests have their own separate cart.
-  const cartStorageKey = user
-    ? `shopsphere-cart-${user.userId}`
-    : "shopsphere-cart-guest";
+  const isCustomer = isAuthenticated && user?.role === "CUSTOMER";
+
+  const cartStorageKey = "shopsphere-cart-guest";
+
+  const cartHeaders = () => {
+    const token = authService.getToken();
+
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  };
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,12 +73,13 @@ export default function HomePage() {
   const [filter, setFilter] = useState("all");
 
   const [cart, setCart] = useState<Record<number, number>>({});
-  const [cartLoadedForKey, setCartLoadedForKey] = useState<string | null>(null);
+  const [cartError, setCartError] = useState("");
 
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+
   const [completedOrder, setCompletedOrder] =
     useState<OrderResponse | null>(null);
 
@@ -72,10 +94,12 @@ export default function HomePage() {
     try {
       setLoading(true);
       setError("");
+
       const data = await productService.getAll();
       setProducts(data);
     } catch (err) {
       console.error(err);
+
       setError(
         "Unable to load products. Please check your backend connection."
       );
@@ -88,28 +112,70 @@ export default function HomePage() {
     void loadProducts();
   }, []);
 
-  // Load the correct cart whenever the logged-in user changes.
+  // Load customer cart from the backend.
+  // Guest cart continues to use localStorage.
   useEffect(() => {
-    try {
-      const savedCart = localStorage.getItem(cartStorageKey);
-      const parsedCart = savedCart ? JSON.parse(savedCart) : {};
+    let cancelled = false;
 
-      setCart(parsedCart);
-    } catch {
-      setCart({});
-    }
+    const loadCart = async () => {
+      if (isCustomer) {
+        try {
+          setCartError("");
 
-    setCartLoadedForKey(cartStorageKey);
-  }, [cartStorageKey]);
+          const response = await axios.get<BackendCartResponse>(
+            "/api/cart",
+            {
+              headers: cartHeaders(),
+            }
+          );
 
-  // Save only after the correct user's cart has loaded.
+          if (cancelled) return;
+
+          const backendCart: Record<number, number> = {};
+
+          response.data.items.forEach((item) => {
+            backendCart[item.productId] = item.quantity;
+          });
+
+          setCart(backendCart);
+        } catch (err) {
+          console.error("Unable to load customer cart:", err);
+
+          if (!cancelled) {
+            setCartError(
+              "Unable to load your saved cart. Please refresh the page."
+            );
+          }
+        }
+      } else {
+        try {
+          const savedCart = localStorage.getItem(cartStorageKey);
+          const parsedCart = savedCart ? JSON.parse(savedCart) : {};
+
+          if (!cancelled) {
+            setCart(parsedCart);
+          }
+        } catch {
+          if (!cancelled) {
+            setCart({});
+          }
+        }
+      }
+    };
+
+    void loadCart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isCustomer, user?.userId]);
+
+  // Save only guest carts in localStorage.
   useEffect(() => {
-    if (cartLoadedForKey !== cartStorageKey) {
-      return;
+    if (!isCustomer) {
+      localStorage.setItem(cartStorageKey, JSON.stringify(cart));
     }
-
-    localStorage.setItem(cartStorageKey, JSON.stringify(cart));
-  }, [cart, cartStorageKey, cartLoadedForKey]);
+  }, [cart, isCustomer, cartStorageKey]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -132,34 +198,78 @@ export default function HomePage() {
     });
   }, [products, searchQuery, filter]);
 
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
     if (!product.active || product.stockQuantity <= 0) return;
 
-    setCart((current) => {
-      const currentQuantity = current[product.id] || 0;
+    const currentQuantity = cart[product.id] || 0;
 
-      if (currentQuantity >= product.stockQuantity) {
-        return current;
+    if (currentQuantity >= product.stockQuantity) return;
+
+    // Authenticated customers use the backend cart.
+    if (isCustomer) {
+      try {
+        setCartError("");
+
+        const response = await axios.post<BackendCartResponse>(
+          "/api/cart/items",
+          {
+            productId: product.id,
+            quantity: 1,
+          },
+          {
+            headers: cartHeaders(),
+          }
+        );
+
+        const updatedCart: Record<number, number> = {};
+
+        response.data.items.forEach((item) => {
+          updatedCart[item.productId] = item.quantity;
+        });
+
+        setCart(updatedCart);
+      } catch (err) {
+        console.error("Unable to add item to cart:", err);
+
+        setCartError(
+          axios.isAxiosError(err)
+            ? err.response?.data?.message ||
+                "Unable to add this product to your cart."
+            : "Unable to add this product to your cart."
+        );
       }
 
-      return {
-        ...current,
-        [product.id]: currentQuantity + 1,
-      };
-    });
+      return;
+    }
+
+    // Guests use localStorage.
+    setCart((current) => ({
+      ...current,
+      [product.id]: (current[product.id] || 0) + 1,
+    }));
   };
 
   const increaseQuantity = (product: Product) => {
-    addToCart(product);
+    void addToCart(product);
   };
 
+  // Customer quantity decrease is temporarily disabled because
+  // the backend PUT endpoint was returning 403 during testing.
   const decreaseQuantity = (productId: number) => {
+    if (isCustomer) {
+      setCartError(
+        "Quantity decrease is temporarily unavailable. You can remove the item instead."
+      );
+      return;
+    }
+
     setCart((current) => {
       const quantity = current[productId] || 0;
 
       if (quantity <= 1) {
         const updatedCart = { ...current };
         delete updatedCart[productId];
+
         return updatedCart;
       }
 
@@ -170,10 +280,38 @@ export default function HomePage() {
     });
   };
 
-  const removeFromCart = (productId: number) => {
+  const removeFromCart = async (productId: number) => {
+    if (isCustomer) {
+      try {
+        setCartError("");
+
+        const response = await axios.delete<BackendCartResponse>(
+          `/api/cart/items/${productId}`,
+          {
+            headers: cartHeaders(),
+          }
+        );
+
+        const updatedCart: Record<number, number> = {};
+
+        response.data.items.forEach((item) => {
+          updatedCart[item.productId] = item.quantity;
+        });
+
+        setCart(updatedCart);
+      } catch (err) {
+        console.error("Unable to remove cart item:", err);
+
+        setCartError("Unable to remove this item. Please try again.");
+      }
+
+      return;
+    }
+
     setCart((current) => {
       const updatedCart = { ...current };
       delete updatedCart[productId];
+
       return updatedCart;
     });
   };
@@ -228,19 +366,25 @@ export default function HomePage() {
       };
 
       const response = await axios.post<OrderResponse>(
-        "http://localhost:8080/api/orders",
+        "/api/orders",
         orderRequest,
         {
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: cartHeaders(),
         }
       );
 
       setCompletedOrder(response.data);
+
+      if (isCustomer) {
+        await axios.delete("/api/cart", {
+          headers: cartHeaders(),
+        });
+      }
+
       setCart({});
       setShowCheckout(false);
       setShowCart(false);
+
       setCheckoutForm({
         customerName: "",
         customerEmail: "",
@@ -313,15 +457,23 @@ export default function HomePage() {
               </button>
             </div>
 
+            {cartError && (
+              <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                {cartError}
+              </p>
+            )}
+
             {cartItems.length === 0 ? (
               <div className="py-12 text-center">
                 <ShoppingCart
                   size={42}
                   className="mx-auto text-zinc-300"
                 />
+
                 <p className="mt-4 font-semibold text-zinc-700">
                   Your cart is empty
                 </p>
+
                 <p className="mt-2 text-sm text-zinc-500">
                   Add some products to start shopping!
                 </p>
@@ -337,9 +489,11 @@ export default function HomePage() {
                       <h3 className="font-bold text-zinc-900">
                         {product.name}
                       </h3>
+
                       <p className="mt-1 text-sm text-zinc-500">
                         ${product.price.toFixed(2)} each
                       </p>
+
                       <p className="mt-1 text-xs text-zinc-400">
                         SKU: {product.sku}
                       </p>
@@ -388,6 +542,7 @@ export default function HomePage() {
                   <span className="text-lg font-bold text-zinc-900">
                     Subtotal
                   </span>
+
                   <span className="text-2xl font-black text-orange-500">
                     ${cartSubtotal.toFixed(2)}
                   </span>
@@ -438,6 +593,7 @@ export default function HomePage() {
                 <label className="mb-1 block text-sm font-semibold text-zinc-700">
                   Full Name
                 </label>
+
                 <input
                   type="text"
                   name="customerName"
@@ -454,6 +610,7 @@ export default function HomePage() {
                 <label className="mb-1 block text-sm font-semibold text-zinc-700">
                   Email Address
                 </label>
+
                 <input
                   type="email"
                   name="customerEmail"
@@ -470,6 +627,7 @@ export default function HomePage() {
                 <label className="mb-1 block text-sm font-semibold text-zinc-700">
                   Phone Number
                 </label>
+
                 <input
                   type="tel"
                   name="customerPhone"
@@ -486,6 +644,7 @@ export default function HomePage() {
                 <label className="mb-1 block text-sm font-semibold text-zinc-700">
                   Delivery Address
                 </label>
+
                 <textarea
                   name="deliveryAddress"
                   value={checkoutForm.deliveryAddress}
@@ -503,6 +662,7 @@ export default function HomePage() {
                   <span>Items ({cartCount})</span>
                   <span>${cartSubtotal.toFixed(2)}</span>
                 </div>
+
                 <div className="mt-3 flex justify-between border-t border-zinc-200 pt-3 font-bold text-zinc-900">
                   <span>Subtotal</span>
                   <span>${cartSubtotal.toFixed(2)}</span>
@@ -545,12 +705,14 @@ export default function HomePage() {
 
             <div className="mt-6 rounded-xl bg-zinc-50 p-5 text-left">
               <p className="text-sm text-zinc-500">Order Number</p>
+
               <p className="mt-1 break-all text-lg font-bold text-orange-500">
                 {completedOrder.orderNumber}
               </p>
 
               <div className="mt-4 flex justify-between">
                 <span className="text-sm text-zinc-500">Order Total</span>
+
                 <span className="font-bold text-zinc-900">
                   ${Number(completedOrder.totalAmount).toFixed(2)}
                 </span>
@@ -558,6 +720,7 @@ export default function HomePage() {
 
               <div className="mt-2 flex justify-between">
                 <span className="text-sm text-zinc-500">Status</span>
+
                 <span className="font-semibold text-zinc-900">
                   {completedOrder.status}
                 </span>
@@ -583,9 +746,11 @@ export default function HomePage() {
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-500">
               Our collection
             </p>
+
             <h2 className="mt-3 text-3xl font-black tracking-tight text-zinc-900 md:text-4xl">
               Explore products
             </h2>
+
             <p className="mt-3 text-zinc-500">
               Discover products available in our store.
             </p>
@@ -623,6 +788,7 @@ export default function HomePage() {
           ) : error ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
               <p className="font-semibold text-red-700">{error}</p>
+
               <button
                 onClick={loadProducts}
                 className="mt-4 rounded-full bg-red-600 px-5 py-2 text-sm text-white"
@@ -636,9 +802,11 @@ export default function HomePage() {
                 className="mx-auto text-zinc-400"
                 size={35}
               />
+
               <h3 className="mt-4 text-xl font-bold text-zinc-800">
                 No products found
               </h3>
+
               <p className="mt-2 text-sm text-zinc-500">
                 Try another search or change the filter.
               </p>
@@ -665,6 +833,7 @@ export default function HomePage() {
           <p>
             © {new Date().getFullYear()} ShopSphere. All rights reserved.
           </p>
+
           <p>Shop better. Discover more.</p>
         </div>
       </footer>
